@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { continueConversation } from '@/app/actions/journal';
-import { Send, Loader2, LogOut, User } from 'lucide-react';
+import { Send, Loader2, LogOut, User, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { authClient, useSession } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
@@ -27,8 +27,34 @@ export function JournalChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   const { data: session, refetch } = useSession();
   const router = useRouter();
+
+  // Fetch profile image
+  useEffect(() => {
+    const fetchProfileImage = async () => {
+      if (!session?.user) return;
+      
+      try {
+        const token = localStorage.getItem("bearer_token");
+        const response = await fetch("/api/user/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setProfileImage(data.image);
+        }
+      } catch (error) {
+        console.error("Failed to fetch profile image:", error);
+      }
+    };
+
+    fetchProfileImage();
+  }, [session]);
 
   const handleSignOut = async () => {
     const { error } = await authClient.signOut();
@@ -93,8 +119,16 @@ export function JournalChat() {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10">
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="Profile"
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <User className="h-5 w-5" />
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -105,6 +139,10 @@ export function JournalChat() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer">
+                <UserCircle className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
