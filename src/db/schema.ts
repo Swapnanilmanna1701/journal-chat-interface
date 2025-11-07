@@ -66,3 +66,16 @@ export const verification = sqliteTable("verification", {
     () => new Date(),
   ),
 });
+
+export const userLogs = sqliteTable('user_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  category: text('category').notNull(),
+  isCompleted: integer('is_completed', { mode: 'boolean' }).default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
