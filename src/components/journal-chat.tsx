@@ -23,6 +23,27 @@ type Message = {
   content: string;
 };
 
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1.5 px-4 py-3">
+      <div className="flex gap-1">
+        <div 
+          className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce"
+          style={{ animationDelay: '0ms', animationDuration: '1.4s' }}
+        />
+        <div 
+          className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce"
+          style={{ animationDelay: '200ms', animationDuration: '1.4s' }}
+        />
+        <div 
+          className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce"
+          style={{ animationDelay: '400ms', animationDuration: '1.4s' }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function JournalChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -197,8 +218,8 @@ export function JournalChat() {
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="max-w-[80%] rounded-lg px-4 py-3 shadow-sm bg-muted text-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                <div className="max-w-[80%] rounded-lg shadow-sm bg-muted text-foreground">
+                  <TypingIndicator />
                 </div>
               </div>
             )}
