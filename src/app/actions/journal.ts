@@ -14,24 +14,54 @@ export async function continueConversation(messages: any[]) {
   }
 
   const userId = session.user.id;
+  const sessionToken = session.session.token;
+
+  // Fetch all user logs to provide context
+  const logsResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/logs`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${sessionToken}`,
+    },
+  });
+
+  let userLogs = [];
+  if (logsResponse.ok) {
+    userLogs = await logsResponse.json();
+  }
+
+  // Create context from user's logs
+  const logsContext = userLogs.length > 0
+    ? `\n\nUser's Current Logs:\n${userLogs.map((log: any) => 
+        `- [${log.category}] ${log.title}: ${log.content} ${log.isCompleted ? '(completed)' : '(pending)'}`
+      ).join('\n')}`
+    : '\n\nUser has no logs yet.';
 
   const result = await streamText({
-    model: google('gemini-2.0-flash-exp'),
+    model: google('gemini-2.0-flash-exp', {
+      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    }),
     messages: convertToCoreMessages(messages),
-    system: `You are a helpful journal assistant. You can ONLY help with journaling tasks.
+    system: `You are a helpful journal assistant. You can ONLY help with journaling tasks and answer questions about the user's journal entries.
 
 Your capabilities are LIMITED to:
-1. Adding journal entries (logs, reminders, notes, recommendations)
+1. Adding journal entries (logs, reminders, notes, recommendations, todo items, shopping lists)
 2. Querying and retrieving journal entries
 3. Organizing entries by categories (shopping, reminders, recommendations, todo, note, etc.)
+4. Answering questions about the user's existing journal entries using natural language understanding
 
-For ANY other request (math, general knowledge, coding, etc.), you MUST respond with:
-"I'm only a journaling app. I can't help with [topic]. I can only help you manage your journal entries, reminders, and notes."
+IMPORTANT RULES:
+- ONLY answer questions related to the user's journal entries listed below
+- For questions about entries, analyze the content and description to provide accurate answers
+- If the user asks about something that's NOT in their journal entries, respond EXACTLY with: "I don't have information regarding that."
+- For ANY other request (math, general knowledge, coding, news, weather, etc.), respond EXACTLY with: "I don't have information regarding that."
+- Stay strictly within your journaling domain
+- Be conversational and helpful when answering about journal entries
 
 When a user wants to add an entry, use the addJournalEntry function.
 When a user wants to query entries, use the queryJournalEntries function.
+When answering questions, use the context from the user's logs provided below.
 
-Be conversational and helpful, but stay strictly within your journaling domain.`,
+${logsContext}`,
     tools: {
       addJournalEntry: {
         description: 'Add a new entry to the journal. Use this when the user wants to log something, create a reminder, or save a note.',
@@ -55,10 +85,6 @@ Be conversational and helpful, but stay strictly within your journaling domain.`
         },
         execute: async ({ title, content, category }: { title: string; content: string; category: string }) => {
           try {
-            // Get session token from the authenticated session
-            const sessionToken = session.session.token;
-            
-            // Call the API to create a log
             const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/logs`, {
               method: 'POST',
               headers: {
@@ -113,15 +139,10 @@ Be conversational and helpful, but stay strictly within your journaling domain.`
         },
         execute: async ({ category }: { category?: string }) => {
           try {
-            // Get session token from the authenticated session
-            const sessionToken = session.session.token;
-            
-            // Build API URL with optional category filter
             const url = category 
               ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/logs?category=${encodeURIComponent(category.toLowerCase())}`
               : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/logs`;
             
-            // Call the API to fetch logs
             const response = await fetch(url, {
               method: 'GET',
               headers: {
@@ -176,6 +197,5 @@ Be conversational and helpful, but stay strictly within your journaling domain.`
     maxSteps: 5,
   });
 
-  // Return the full text response
   return result.text;
 }
