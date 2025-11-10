@@ -1,6 +1,6 @@
 'use server';
 
-import { streamText, convertToCoreMessages } from 'ai';
+import { generateText, convertToCoreMessages } from 'ai';
 import { google } from '@ai-sdk/google';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
@@ -16,8 +16,24 @@ export async function continueConversation(messages: any[]) {
   const userId = session.user.id;
   const sessionToken = session.session.token;
 
-  // Fetch all user logs to provide context
-  const logsResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/logs`, {
+  // Extract category filter from the last message if present
+  let categoryFilter = null;
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.content) {
+    const match = lastMessage.content.match(/\[Filtering by (\w+) category\]/);
+    if (match) {
+      categoryFilter = match[1];
+      // Remove the filter prefix for processing
+      lastMessage.content = lastMessage.content.replace(/\[Filtering by \w+ category\]\s*/, '');
+    }
+  }
+
+  // Fetch user logs with optional category filter
+  const logsUrl = categoryFilter && categoryFilter !== 'all'
+    ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/logs?category=${categoryFilter}`
+    : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/logs`;
+
+  const logsResponse = await fetch(logsUrl, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${sessionToken}`,
@@ -31,14 +47,16 @@ export async function continueConversation(messages: any[]) {
 
   // Create context from user's logs
   const logsContext = userLogs.length > 0
-    ? `\n\nUser's Current Logs:\n${userLogs.map((log: any) => 
+    ? `\n\nUser's Current Logs${categoryFilter && categoryFilter !== 'all' ? ` (filtered by ${categoryFilter} category)` : ''}:\n${userLogs.map((log: any) => 
         `- [${log.category}] ${log.title}: ${log.content} ${log.isCompleted ? '(completed)' : '(pending)'}`
       ).join('\n')}`
+    : categoryFilter && categoryFilter !== 'all'
+    ? `\n\nUser has no logs in the ${categoryFilter} category yet.`
     : '\n\nUser has no logs yet.';
 
-  const result = await streamText({
+  const result = await generateText({
     model: google('gemini-2.0-flash-exp', {
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      apiKey: 'AIzaSyAB_4BN3Peo5sfruvJIAYIZpKRIncHhZNQ',
     }),
     messages: convertToCoreMessages(messages),
     system: `You are a helpful journal assistant. You can ONLY help with journaling tasks and answer questions about the user's journal entries.
@@ -51,17 +69,20 @@ Your capabilities are LIMITED to:
 
 IMPORTANT RULES:
 - ONLY answer questions related to the user's journal entries listed below
-- For questions about entries, analyze the content and description to provide accurate answers
+- For questions about entries, carefully analyze the title and content/description to provide accurate, helpful answers
+- Use natural language understanding to match user queries with log content (e.g., "grocery" matches "groceries", "buy milk" matches shopping lists with milk)
 - If the user asks about something that's NOT in their journal entries, respond EXACTLY with: "I don't have information regarding that."
-- For ANY other request (math, general knowledge, coding, news, weather, etc.), respond EXACTLY with: "I don't have information regarding that."
-- Stay strictly within your journaling domain
-- Be conversational and helpful when answering about journal entries
+- For ANY other request (math calculations, general knowledge, coding help, news, weather, jokes, etc.), respond EXACTLY with: "I don't have information regarding that."
+- Stay strictly within your journaling domain - you are NOT a general-purpose assistant
+- Be conversational, helpful, and concise when answering about journal entries
+- When multiple entries match a query, list them all
+- Respect category filters - if filtering by a category, only discuss entries from that category
 
 When a user wants to add an entry, use the addJournalEntry function.
 When a user wants to query entries, use the queryJournalEntries function.
 When answering questions, use the context from the user's logs provided below.
 
-${logsContext}`,
+${logsContext}${categoryFilter && categoryFilter !== 'all' ? `\n\nIMPORTANT: The user is currently filtering by the ${categoryFilter} category. Only show and discuss entries from this category.` : ''}`,
     tools: {
       addJournalEntry: {
         description: 'Add a new entry to the journal. Use this when the user wants to log something, create a reminder, or save a note.',
