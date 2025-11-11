@@ -121,7 +121,7 @@ export function JournalChat() {
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!input.trim() || isLoading) return;
+    if (!(input || '').trim() || isLoading) return;
 
     // Check for bearer token
     if (!token) {
@@ -131,7 +131,7 @@ export function JournalChat() {
     }
 
     // Add category context if specific category is selected
-    let messageContent = input.trim();
+    let messageContent = (input || '').trim();
     if (selectedCategory !== 'all') {
       messageContent = `[Filtering by ${selectedCategory} category] ${messageContent}`;
     }
@@ -303,7 +303,7 @@ export function JournalChat() {
             <form onSubmit={onSubmit} className="flex gap-2">
               <input
                 type="text"
-                value={input}
+                value={input || ''}
                 onChange={handleInputChange}
                 placeholder={selectedCategory !== 'all' 
                   ? `Ask about ${categories.find(c => c.value === selectedCategory)?.label.toLowerCase()} logs...`
@@ -313,7 +313,7 @@ export function JournalChat() {
               />
               <button
                 type="submit"
-                disabled={isLoading || !input.trim()}
+                disabled={isLoading || !(input || '').trim()}
                 className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
