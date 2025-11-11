@@ -50,7 +50,7 @@ export function JournalChat() {
   const token = typeof window !== 'undefined' ? localStorage.getItem("bearer_token") : null;
 
   // Use the useChat hook from Vercel AI SDK for streaming
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -58,6 +58,9 @@ export function JournalChat() {
     onError: (error) => {
       console.error('Chat error:', error);
       toast.error('Failed to send message. Please try again.');
+    },
+    body: {
+      category: selectedCategory !== 'all' ? selectedCategory : undefined,
     },
   });
 
@@ -118,10 +121,10 @@ export function JournalChat() {
     }
   };
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!(input || '').trim() || isLoading) return;
+    if (!input?.trim() || isLoading) return;
 
     // Check for bearer token
     if (!token) {
@@ -130,34 +133,7 @@ export function JournalChat() {
       return;
     }
 
-    // Add category context if specific category is selected
-    let messageContent = (input || '').trim();
-    if (selectedCategory !== 'all') {
-      messageContent = `[Filtering by ${selectedCategory} category] ${messageContent}`;
-    }
-
-    // Create a synthetic event with the modified content
-    const syntheticEvent = {
-      ...e,
-      currentTarget: {
-        ...e.currentTarget,
-        elements: {
-          ...e.currentTarget.elements,
-        },
-      },
-    } as React.FormEvent<HTMLFormElement>;
-
-    // Temporarily store original input
-    const originalInput = input;
-    
-    // Set the input with category prefix
-    setInput(messageContent);
-    
-    // Submit the form
-    await handleSubmit(syntheticEvent);
-    
-    // Clear input (handleSubmit already does this, but ensure it)
-    setInput('');
+    handleSubmit(e);
   };
 
   return (
@@ -255,31 +231,26 @@ export function JournalChat() {
               </div>
             )}
 
-            {messages.map((message) => {
-              // Remove category prefix from display
-              const displayContent = message.content.replace(/\[Filtering by \w+ category\]\s*/, '');
-              
-              return (
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={cn(
+                  'flex',
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
+                )}
+              >
                 <div
-                  key={message.id}
                   className={cn(
-                    'flex',
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
+                    'max-w-[80%] rounded-lg px-4 py-3 shadow-sm',
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground'
                   )}
                 >
-                  <div
-                    className={cn(
-                      'max-w-[80%] rounded-lg px-4 py-3 shadow-sm',
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-foreground'
-                    )}
-                  >
-                    <p className="text-sm whitespace-pre-wrap break-words">{displayContent}</p>
-                  </div>
+                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                 </div>
-              );
-            })}
+              </div>
+            ))}
 
             {isLoading && (
               <div className="flex justify-start">
@@ -303,7 +274,7 @@ export function JournalChat() {
             <form onSubmit={onSubmit} className="flex gap-2">
               <input
                 type="text"
-                value={input || ''}
+                value={input}
                 onChange={handleInputChange}
                 placeholder={selectedCategory !== 'all' 
                   ? `Ask about ${categories.find(c => c.value === selectedCategory)?.label.toLowerCase()} logs...`
@@ -313,7 +284,7 @@ export function JournalChat() {
               />
               <button
                 type="submit"
-                disabled={isLoading || !(input || '').trim()}
+                disabled={isLoading || !input?.trim()}
                 className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
