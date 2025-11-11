@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { Send, Loader2, LogOut, User, UserCircle, Filter, X } from 'lucide-react';
+import { Send, Loader2, LogOut, User, UserCircle, Filter, X, CheckCircle2, Circle, ShoppingCart, Bell, StickyNote, Star, ListTodo } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { authClient, useSession } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
@@ -40,6 +40,133 @@ function TypingIndicator() {
   );
 }
 
+// Interactive message renderer for AI responses
+function MessageContent({ content, role }: { content: string; role: string }) {
+  if (role === 'user') {
+    return <p className="text-sm whitespace-pre-wrap break-words">{content}</p>;
+  }
+
+  // Parse and render structured AI responses
+  const lines = content.split('\n');
+  const elements: JSX.Element[] = [];
+  let currentList: string[] = [];
+  let key = 0;
+
+  const flushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <div key={`list-${key++}`} className="space-y-2 my-3">
+          {currentList.map((item, idx) => {
+            const categoryMatch = item.match(/\[(\w+)\]/);
+            const statusMatch = item.match(/\((completed|pending)\)/);
+            const category = categoryMatch ? categoryMatch[1] : null;
+            const isCompleted = statusMatch ? statusMatch[1] === 'completed' : false;
+            
+            // Clean the item text
+            let cleanText = item
+              .replace(/^[-•]\s*/, '')
+              .replace(/\[(\w+)\]\s*/, '')
+              .replace(/\s*\((completed|pending)\)/, '');
+
+            const getCategoryIcon = (cat: string | null) => {
+              switch (cat?.toLowerCase()) {
+                case 'shopping': return <ShoppingCart className="w-4 h-4 text-green-600" />;
+                case 'reminder': return <Bell className="w-4 h-4 text-yellow-600" />;
+                case 'todo': return <ListTodo className="w-4 h-4 text-blue-600" />;
+                case 'note': return <StickyNote className="w-4 h-4 text-purple-600" />;
+                case 'recommendation': return <Star className="w-4 h-4 text-pink-600" />;
+                default: return null;
+              }
+            };
+
+            return (
+              <div 
+                key={idx} 
+                className={cn(
+                  "flex items-start gap-3 p-3 rounded-lg border transition-colors",
+                  isCompleted 
+                    ? "bg-muted/30 border-muted-foreground/20 opacity-70" 
+                    : "bg-card border-border hover:border-primary/50"
+                )}
+              >
+                <div className="flex-shrink-0 mt-0.5">
+                  {isCompleted ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <Circle className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    {category && (
+                      <span className={cn(
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                        category === 'shopping' && "bg-green-500/10 text-green-700",
+                        category === 'reminder' && "bg-yellow-500/10 text-yellow-700",
+                        category === 'todo' && "bg-blue-500/10 text-blue-700",
+                        category === 'note' && "bg-purple-500/10 text-purple-700",
+                        category === 'recommendation' && "bg-pink-500/10 text-pink-700"
+                      )}>
+                        {getCategoryIcon(category)}
+                        {category}
+                      </span>
+                    )}
+                    {isCompleted && (
+                      <span className="text-xs text-muted-foreground">Completed</span>
+                    )}
+                  </div>
+                  <p className={cn(
+                    "text-sm",
+                    isCompleted && "line-through text-muted-foreground"
+                  )}>
+                    {cleanText}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+      currentList = [];
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmedLine = line.trim();
+    
+    // Check if it's a list item
+    if (trimmedLine.match(/^[-•]\s*.+/)) {
+      currentList.push(trimmedLine);
+    } else {
+      // Flush any pending list
+      flushList();
+      
+      // Regular text or heading
+      if (trimmedLine) {
+        if (trimmedLine.endsWith(':') && trimmedLine.split(' ').length <= 5) {
+          // Likely a heading
+          elements.push(
+            <h4 key={`heading-${key++}`} className="font-semibold text-foreground mt-3 mb-2">
+              {trimmedLine}
+            </h4>
+          );
+        } else {
+          elements.push(
+            <p key={`text-${key++}`} className="text-sm text-foreground leading-relaxed mb-2">
+              {trimmedLine}
+            </p>
+          );
+        }
+      }
+    }
+  });
+
+  // Flush any remaining list
+  flushList();
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
 export function JournalChat() {
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category>('all');
@@ -50,7 +177,7 @@ export function JournalChat() {
   const token = typeof window !== 'undefined' ? localStorage.getItem("bearer_token") : null;
 
   // Use the useChat hook from Vercel AI SDK for streaming
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
     api: '/api/chat',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -58,9 +185,6 @@ export function JournalChat() {
     onError: (error) => {
       console.error('Chat error:', error);
       toast.error('Failed to send message. Please try again.');
-    },
-    body: {
-      category: selectedCategory !== 'all' ? selectedCategory : undefined,
     },
   });
 
@@ -133,7 +257,32 @@ export function JournalChat() {
       return;
     }
 
-    handleSubmit(e);
+    // Prefix message with category filter if active
+    let messageToSend = input.trim();
+    if (selectedCategory !== 'all') {
+      messageToSend = `[Filtering by ${selectedCategory} category] ${messageToSend}`;
+    }
+
+    // Create a synthetic event with the modified input
+    const syntheticEvent = {
+      ...e,
+      currentTarget: {
+        ...e.currentTarget,
+        elements: {
+          ...e.currentTarget.elements,
+        }
+      }
+    } as React.FormEvent<HTMLFormElement>;
+
+    // Temporarily set the input to include the category prefix
+    setInput(messageToSend);
+    
+    // Submit with a small delay to ensure state update
+    setTimeout(() => {
+      handleSubmit(syntheticEvent);
+      // Reset to original input after submit
+      setInput(input.trim());
+    }, 0);
   };
 
   return (
@@ -231,26 +380,32 @@ export function JournalChat() {
               </div>
             )}
 
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  'flex',
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                )}
-              >
+            {messages.map((message) => {
+              // Filter out messages that only contain the category prefix
+              const displayContent = message.content.replace(/^\[Filtering by \w+ category\]\s*/, '');
+              if (!displayContent.trim()) return null;
+
+              return (
                 <div
+                  key={message.id}
                   className={cn(
-                    'max-w-[80%] rounded-lg px-4 py-3 shadow-sm',
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground'
+                    'flex',
+                    message.role === 'user' ? 'justify-end' : 'justify-start'
                   )}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                  <div
+                    className={cn(
+                      'max-w-[85%] rounded-lg px-4 py-3 shadow-sm',
+                      message.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-foreground'
+                    )}
+                  >
+                    <MessageContent content={displayContent} role={message.role} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {isLoading && (
               <div className="flex justify-start">
