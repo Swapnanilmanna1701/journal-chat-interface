@@ -2,19 +2,32 @@
 
 import { generateText, convertToCoreMessages } from 'ai';
 import { google } from '@ai-sdk/google';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
 
-export async function continueConversation(messages: any[]) {
-  // Get authenticated user session
-  const session = await auth.api.getSession({ headers: await headers() });
-  
-  if (!session || !session.user?.id) {
+export async function continueConversation(messages: any[], bearerToken: string) {
+  // Validate bearer token is provided
+  if (!bearerToken) {
     throw new Error('Authentication required');
   }
 
-  const userId = session.user.id;
-  const sessionToken = session.session.token;
+  // Verify session using the bearer token
+  const sessionResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/get-session`, {
+    headers: {
+      'Authorization': `Bearer ${bearerToken}`,
+      'Cookie': `better-auth.session_token=${bearerToken}`,
+    },
+  });
+
+  if (!sessionResponse.ok) {
+    throw new Error('Authentication required');
+  }
+
+  const sessionData = await sessionResponse.json();
+  if (!sessionData?.user?.id) {
+    throw new Error('Authentication required');
+  }
+
+  const userId = sessionData.user.id;
+  const sessionToken = bearerToken;
 
   // Extract category filter from the last message if present
   let categoryFilter = null;

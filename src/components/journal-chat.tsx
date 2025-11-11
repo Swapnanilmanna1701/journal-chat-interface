@@ -117,6 +117,14 @@ export function JournalChat() {
     
     if (!input.trim() || isLoading) return;
 
+    // Get bearer token from localStorage
+    const token = localStorage.getItem("bearer_token");
+    if (!token) {
+      toast.error("Authentication required. Please log in again.");
+      router.push("/login");
+      return;
+    }
+
     let userInput = input.trim();
     
     // Add category context if specific category is selected
@@ -136,7 +144,7 @@ export function JournalChat() {
 
     try {
       const newMessages = [...messages, { ...userMessage, content: userInput }]; // Send with category context
-      const response = await continueConversation(newMessages);
+      const response = await continueConversation(newMessages, token);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
