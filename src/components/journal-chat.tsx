@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { continueConversation } from '@/app/actions/journal';
+import { useChat } from 'ai/react';
 import { Send, Loader2, LogOut, User, UserCircle, Filter, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { authClient, useSession } from '@/lib/auth-client';
@@ -16,12 +16,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-type Message = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-};
 
 type Category = 'all' | 'todo' | 'shopping' | 'reminder' | 'note' | 'recommendation';
 
@@ -47,13 +41,25 @@ function TypingIndicator() {
 }
 
 export function JournalChat() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category>('all');
   const { data: session, refetch } = useSession();
   const router = useRouter();
+
+  // Get bearer token for API calls
+  const token = typeof window !== 'undefined' ? localStorage.getItem("bearer_token") : null;
+
+  // Use the useChat hook from Vercel AI SDK for streaming
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
+    api: '/api/chat',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    onError: (error) => {
+      console.error('Chat error:', error);
+      toast.error('Failed to send message. Please try again.');
+    },
+  });
 
   const categories: { value: Category; label: string; color: string }[] = [
     { value: 'all', label: 'All Categories', color: 'bg-primary/10 text-primary hover:bg-primary/20' },
@@ -112,57 +118,46 @@ export function JournalChat() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!input.trim() || isLoading) return;
 
-    // Get bearer token from localStorage
-    const token = localStorage.getItem("bearer_token");
+    // Check for bearer token
     if (!token) {
       toast.error("Authentication required. Please log in again.");
       router.push("/login");
       return;
     }
 
-    let userInput = input.trim();
-    
     // Add category context if specific category is selected
+    let messageContent = input.trim();
     if (selectedCategory !== 'all') {
-      userInput = `[Filtering by ${selectedCategory} category] ${userInput}`;
+      messageContent = `[Filtering by ${selectedCategory} category] ${messageContent}`;
     }
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(), // Display original input without category prefix
-    };
+    // Create a synthetic event with the modified content
+    const syntheticEvent = {
+      ...e,
+      currentTarget: {
+        ...e.currentTarget,
+        elements: {
+          ...e.currentTarget.elements,
+        },
+      },
+    } as React.FormEvent<HTMLFormElement>;
 
-    setMessages(prev => [...prev, userMessage]);
+    // Temporarily store original input
+    const originalInput = input;
+    
+    // Set the input with category prefix
+    setInput(messageContent);
+    
+    // Submit the form
+    await handleSubmit(syntheticEvent);
+    
+    // Clear input (handleSubmit already does this, but ensure it)
     setInput('');
-    setIsLoading(true);
-
-    try {
-      const newMessages = [...messages, { ...userMessage, content: userInput }]; // Send with category context
-      const response = await continueConversation(newMessages, token);
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response,
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error('Error:', error);
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (
@@ -260,26 +255,31 @@ export function JournalChat() {
               </div>
             )}
 
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  'flex',
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                )}
-              >
+            {messages.map((message) => {
+              // Remove category prefix from display
+              const displayContent = message.content.replace(/\[Filtering by \w+ category\]\s*/, '');
+              
+              return (
                 <div
+                  key={message.id}
                   className={cn(
-                    'max-w-[80%] rounded-lg px-4 py-3 shadow-sm',
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground'
+                    'flex',
+                    message.role === 'user' ? 'justify-end' : 'justify-start'
                   )}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                  <div
+                    className={cn(
+                      'max-w-[80%] rounded-lg px-4 py-3 shadow-sm',
+                      message.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-foreground'
+                    )}
+                  >
+                    <p className="text-sm whitespace-pre-wrap break-words">{displayContent}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {isLoading && (
               <div className="flex justify-start">
@@ -300,11 +300,11 @@ export function JournalChat() {
                 </span>
               </div>
             )}
-            <form onSubmit={handleSubmit} className="flex gap-2">
+            <form onSubmit={onSubmit} className="flex gap-2">
               <input
                 type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={handleInputChange}
                 placeholder={selectedCategory !== 'all' 
                   ? `Ask about ${categories.find(c => c.value === selectedCategory)?.label.toLowerCase()} logs...`
                   : "Type your message..."}
