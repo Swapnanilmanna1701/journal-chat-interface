@@ -2,32 +2,18 @@
 
 import { generateText, convertToCoreMessages } from 'ai';
 import { google } from '@ai-sdk/google';
+import { auth } from '@/lib/auth';
+import { headers } from 'next/headers';
 
 export async function continueConversation(messages: any[], bearerToken: string) {
-  // Validate bearer token is provided
-  if (!bearerToken) {
+  // Validate session using better-auth server API
+  const session = await auth.api.getSession({ headers: await headers() });
+  
+  if (!session?.user?.id) {
     throw new Error('Authentication required');
   }
 
-  // Verify session using the bearer token
-  const sessionResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/get-session`, {
-    headers: {
-      'Authorization': `Bearer ${bearerToken}`,
-      'Cookie': `better-auth.session_token=${bearerToken}`,
-    },
-  });
-
-  if (!sessionResponse.ok) {
-    throw new Error('Authentication required');
-  }
-
-  const sessionData = await sessionResponse.json();
-  if (!sessionData?.user?.id) {
-    throw new Error('Authentication required');
-  }
-
-  const userId = sessionData.user.id;
-  const sessionToken = bearerToken;
+  const userId = session.user.id;
 
   // Extract category filter from the last message if present
   let categoryFilter = null;
@@ -49,7 +35,7 @@ export async function continueConversation(messages: any[], bearerToken: string)
   const logsResponse = await fetch(logsUrl, {
     method: 'GET',
     headers: {
-      'Authorization': `Bearer ${sessionToken}`,
+      'Authorization': `Bearer ${bearerToken}`,
     },
   });
 
@@ -123,7 +109,7 @@ ${logsContext}${categoryFilter && categoryFilter !== 'all' ? `\n\nIMPORTANT: The
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${sessionToken}`,
+                'Authorization': `Bearer ${bearerToken}`,
               },
               body: JSON.stringify({
                 title,
@@ -180,7 +166,7 @@ ${logsContext}${categoryFilter && categoryFilter !== 'all' ? `\n\nIMPORTANT: The
             const response = await fetch(url, {
               method: 'GET',
               headers: {
-                'Authorization': `Bearer ${sessionToken}`,
+                'Authorization': `Bearer ${bearerToken}`,
               },
             });
 
