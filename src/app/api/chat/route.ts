@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   }
 
   const userId = session.user.id;
-  const { messages } = await req.json();
+  const { messages, category } = await req.json();
 
   // Get bearer token from Authorization header
   const authHeader = req.headers.get('Authorization');
@@ -24,17 +24,8 @@ export async function POST(req: Request) {
     return new Response('Bearer token required', { status: 401 });
   }
 
-  // Extract category filter from the last message if present
-  let categoryFilter = null;
-  const lastMessage = messages[messages.length - 1];
-  if (lastMessage?.content) {
-    const match = lastMessage.content.match(/\[Filtering by (\w+) category\]/);
-    if (match) {
-      categoryFilter = match[1];
-      // Remove the filter prefix for processing
-      lastMessage.content = lastMessage.content.replace(/\[Filtering by \w+ category\]\s*/, '');
-    }
-  }
+  // Use category from request body
+  const categoryFilter = category;
 
   // Fetch user logs with optional category filter
   const logsUrl = categoryFilter && categoryFilter !== 'all'

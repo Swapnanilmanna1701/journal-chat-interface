@@ -182,6 +182,9 @@ export function JournalChat() {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    body: {
+      category: selectedCategory !== 'all' ? selectedCategory : undefined,
+    },
     onError: (error) => {
       console.error('Chat error:', error);
       toast.error('Failed to send message. Please try again.');
@@ -257,32 +260,8 @@ export function JournalChat() {
       return;
     }
 
-    // Prefix message with category filter if active
-    let messageToSend = input.trim();
-    if (selectedCategory !== 'all') {
-      messageToSend = `[Filtering by ${selectedCategory} category] ${messageToSend}`;
-    }
-
-    // Create a synthetic event with the modified input
-    const syntheticEvent = {
-      ...e,
-      currentTarget: {
-        ...e.currentTarget,
-        elements: {
-          ...e.currentTarget.elements,
-        }
-      }
-    } as React.FormEvent<HTMLFormElement>;
-
-    // Temporarily set the input to include the category prefix
-    setInput(messageToSend);
-    
-    // Submit with a small delay to ensure state update
-    setTimeout(() => {
-      handleSubmit(syntheticEvent);
-      // Reset to original input after submit
-      setInput(input.trim());
-    }, 0);
+    // Simply call handleSubmit - category is already in the body
+    handleSubmit(e);
   };
 
   return (
