@@ -6,7 +6,7 @@ import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 
 export async function continueConversation(messages: any[], bearerToken: string) {
-  // Validate session using better-auth server API
+  // Get session from request headers (cookies are automatically forwarded in server actions)
   const session = await auth.api.getSession({ headers: await headers() });
   
   if (!session?.user?.id) {
