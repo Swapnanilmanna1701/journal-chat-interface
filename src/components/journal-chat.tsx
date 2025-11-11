@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useChat } from 'ai';
+import { useChat } from '@ai-sdk/react';
 import { Send, Loader2, LogOut, User, UserCircle, Filter, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { authClient, useSession } from '@/lib/auth-client';
