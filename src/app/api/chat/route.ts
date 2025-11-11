@@ -1,5 +1,5 @@
 import { streamText, convertToCoreMessages } from 'ai';
-import { google } from '@ai-sdk/google';
+import { openai } from '@ai-sdk/openai';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 
@@ -54,9 +54,7 @@ export async function POST(req: Request) {
     : '\n\nUser has no logs yet.';
 
   const result = streamText({
-    model: google('gemini-2.0-flash-exp', {
-      apiKey: 'AIzaSyAB_4BN3Peo5sfruvJIAYIZpKRIncHhZNQ',
-    }),
+    model: openai('gpt-4o-mini'),
     messages: convertToCoreMessages(messages),
     system: `You are a helpful journal assistant. You can ONLY help with journaling tasks and answer questions about the user's journal entries.
 
