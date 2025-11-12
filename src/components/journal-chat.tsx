@@ -249,21 +249,21 @@ export function JournalChat() {
   };
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    // Validate input - return early if validation fails
+    // Validate input first - prevent default ONLY if validation fails
     if (!input?.trim() || isLoading) {
+      e.preventDefault();
       return;
     }
 
     // Check for bearer token
     if (!token) {
+      e.preventDefault();
       toast.error("Authentication required. Please log in again.");
       router.push("/login");
       return;
     }
 
-    // All validations passed - trigger the chat submission
+    // All validations passed - let handleSubmit handle preventDefault and submission
     handleSubmit(e);
   };
 
