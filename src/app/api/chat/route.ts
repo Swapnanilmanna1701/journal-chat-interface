@@ -1,5 +1,5 @@
 import { streamText, convertToCoreMessages } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     : '\n\nUser has no logs yet.';
 
   const result = streamText({
-    model: openai('gpt-4o-mini'),
+    model: google('gemini-2.0-flash-exp'),
     messages: convertToCoreMessages(messages),
     system: `You are a helpful journal assistant. You can ONLY help with journaling tasks and answer questions about the user's journal entries.
 
@@ -72,7 +72,8 @@ IMPORTANT RULES:
 - For ANY other request (math calculations, general knowledge, coding help, news, weather, jokes, etc.), respond EXACTLY with: "I don't have information regarding that."
 - Stay strictly within your journaling domain - you are NOT a general-purpose assistant
 - Be conversational, helpful, and concise when answering about journal entries
-- When multiple entries match a query, list them all
+- When multiple entries match a query, list them all in a clean format with each entry on a new line starting with a dash (-)
+- Include the category in square brackets like [shopping] and status in parentheses like (completed) or (pending) for each entry
 - Respect category filters - if filtering by a category, only discuss entries from that category
 
 When a user wants to add an entry, use the addJournalEntry function.
